@@ -2,6 +2,8 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <!-- 添加viewport设置 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kindle Clock</title>
     <style>
         @font-face {
@@ -12,7 +14,7 @@
         body {
             background-color: white;  /* Kindle适合白底黑字 */
             color: black;
-            font-family: 'Digital', monospace;
+            font-family: 'Digital';  /* 移除 monospace */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -22,24 +24,18 @@
 
         .clock-container {
             text-align: center;
+            /* 移除 transform-origin: center center; */
         }
 
         #time {
-            font-size: 72px;  /* 增大时间显示 */
+            font-size: min(72px, 15vw);  /* 使用相对单位 */
             margin-bottom: 20px;
-            letter-spacing: 4px;  /* 增加更多字符间距 */
+            letter-spacing: 4px;
             font-weight: normal;
         }
 
-        #date {
-            font-size: 32px;
-            letter-spacing: 2px;
-            font-weight: normal;
-        }
-
-        #crypto {
-            font-size: 32px;  /* 增大字体 */
-            margin-top: 30px;
+        #date, #crypto {
+            font-size: min(32px, 7vw);
             letter-spacing: 2px;
             font-weight: normal;
         }
@@ -47,49 +43,87 @@
         .crypto-item {
             display: grid;
             grid-template-columns: 1fr auto;
-            gap: 40px;  /* 名称和价格之间的间距 */
+            gap: min(40px, 5vw);  /* 使用相对单位 */
             margin: 15px 0;
-            width: 480px;  /* 显著增加整体宽度 */
+            width: min(480px, 90vw);  /* 使用相对单位 */
             margin-left: auto;
             margin-right: auto;
         }
 
         .crypto-name {
             text-align: left;
-            padding-left: 20px;
+            padding-left: min(20px, 3vw);  /* 使用相对单位 */
         }
 
         .crypto-price {
             text-align: right;
-            padding-right: 20px;
-            min-width: 160px;  /* 为价格区域设置最小宽度，确保有足够空间显示箭头 */
+            padding-right: min(20px, 3vw);  /* 使用相对单位 */
+            min-width: min(160px, 30vw);  /* 使用相对单位 */
         }
 
-        .price-up::after {
-            content: " ↑";
-            color: #000000;
-            display: inline-block;  /* 确保箭头和数字在同一行 */
-            margin-left: 4px;  /* 给箭头添加一点左边距 */
-        }
-        
-        .price-down::after {
-            content: " ↓";
+        /* 修改价格无变化的样式 */
+        .price-unchanged::before {
+            content: "— ";  /* 改为 before，并调整空格位置 */
             color: #000000;
             display: inline-block;
-            margin-left: 4px;
+            margin-right: 4px;  /* 改为 margin-right */
+        }
+
+        /* 修改上涨和下跌样式 */
+        .price-up::before {
+            content: "▲ ";  /* 改为 before，并调整空格位置 */
+            color: #000000;
+            display: inline-block;
+            margin-right: 4px;  /* 改为 margin-right */
+        }
+        
+        .price-down::before {
+            content: "▼ ";  /* 改为 before，并调整空格位 */
+            color: #000000;
+            display: inline-block;
+            margin-right: 4px;  /* 改为 margin-right */
+        }
+
+        /* 添加新的自动缩放脚本样式 */
+        .auto-scale {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        /* 添加更新时间样式 */
+        #update-time {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            font-size: min(16px, 3vw);
+            opacity: 0.7;
+            font-family: sans-serif;  /* 使用普通字体，便于阅读 */
         }
     </style>
 </head>
 <body>
-    <div class="clock-container">
+    <div class="clock-container auto-scale">
         <div id="time">--:--</div>
         <div id="date">星期零 00/00</div>
         <div id="crypto">
-            <div class="crypto-item">BTC: ---.--</div>
-            <div class="crypto-item">ETH: ---.--</div>
-            <div class="crypto-item">BIGTIME: ---.--</div>
+            <div class="crypto-item">
+                <span class="crypto-name">BTC:</span>
+                <span class="crypto-price">---.--</span>
+            </div>
+            <div class="crypto-item">
+                <span class="crypto-name">ETH:</span>
+                <span class="crypto-price">---.--</span>
+            </div>
+            <div class="crypto-item">
+                <span class="crypto-name">BIGTIME:</span>
+                <span class="crypto-price">---.--</span>
+            </div>
         </div>
     </div>
+
+    <div id="update-time">更新时间: --:--:--</div>
 
     <script>
         function updateClock() {
@@ -122,13 +156,18 @@
 
         async function updateCrypto() {
             try {
-                const btcResponse = await fetch('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT');
-                const ethResponse = await fetch('https://www.okx.com/api/v5/market/ticker?instId=ETH-USDT');
-                const bigtimeResponse = await fetch('https://www.okx.com/api/v5/market/ticker?instId=BIGTIME-USDT');
-                
-                const btcData = await btcResponse.json();
-                const ethData = await ethResponse.json();
-                const bigtimeData = await bigtimeResponse.json();
+                // 使用 Promise.all 并行获取数据
+                const [btcResponse, ethResponse, bigtimeResponse] = await Promise.all([
+                    fetch('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT'),
+                    fetch('https://www.okx.com/api/v5/market/ticker?instId=ETH-USDT'),
+                    fetch('https://www.okx.com/api/v5/market/ticker?instId=BIGTIME-USDT')
+                ]);
+
+                const [btcData, ethData, bigtimeData] = await Promise.all([
+                    btcResponse.json(),
+                    ethResponse.json(),
+                    bigtimeResponse.json()
+                ]);
 
                 const currentPrices = {
                     BTC: parseFloat(btcData.data[0].last),
@@ -140,9 +179,10 @@
                 const cryptoDiv = document.getElementById('crypto');
                 cryptoDiv.innerHTML = Object.entries(currentPrices).map(([coin, price]) => {
                     const priceStr = price.toFixed(coin === 'BIGTIME' ? 5 : 2);
-                    const trend = lastPrices[coin] === null ? '' :
+                    const trend = lastPrices[coin] === null ? ' price-unchanged' :  // 初始状态显示无变化标志
                         price > lastPrices[coin] ? ' price-up' :
-                        price < lastPrices[coin] ? ' price-down' : '';
+                        price < lastPrices[coin] ? ' price-down' :
+                        ' price-unchanged';
                     
                     return `
                         <div class="crypto-item">
@@ -153,6 +193,16 @@
 
                 // 更新上一次的价格
                 lastPrices = currentPrices;
+
+                // 在成功获取价格后更新时间
+                const now = new Date();
+                const updateTimeStr = now.toLocaleTimeString('zh-CN', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                document.getElementById('update-time').textContent = `更新时间: ${updateTimeStr}`;
             } catch (error) {
                 console.error('获取价格失败:', error);
             }
@@ -165,6 +215,29 @@
         // 设置定时更新
         setInterval(updateClock, 1000);    // 时钟每秒更新
         setInterval(updateCrypto, 30000);  // 价格每30秒更新
+
+        // 添加自动缩放功能
+        function autoScale() {
+            const container = document.querySelector('.auto-scale');
+            const containerWidth = container.offsetWidth;
+            const containerHeight = container.offsetHeight;
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+
+            // 计算水平和垂直方向的缩放比例
+            const scaleX = windowWidth / containerWidth;
+            const scaleY = windowHeight / containerHeight;
+            
+            // 使用较小的缩放比例，确保内容完全显示
+            const scale = Math.min(scaleX, scaleY) * 0.9; // 0.9是为了留出一些边距
+
+            // 应用缩放
+            container.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        }
+
+        // 页面加载和窗口大小改变时进行缩放
+        window.addEventListener('load', autoScale);
+        window.addEventListener('resize', autoScale);
     </script>
 </body>
 </html>
