@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Kindle Clock</title>
+    <style>
+        @font-face {
+            font-family: 'Digital';
+            src: url('DS-DIGI.TTF') format('truetype');
+        }
+
+        body {
+            background-color: white;  /* Kindle适合白底黑字 */
+            color: black;
+            font-family: 'Digital', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .clock-container {
+            text-align: center;
+        }
+
+        #time {
+            font-size: 72px;  /* 增大时间显示 */
+            margin-bottom: 20px;
+            letter-spacing: 4px;  /* 增加更多字符间距 */
+            font-weight: normal;
+        }
+
+        #date {
+            font-size: 32px;
+            letter-spacing: 2px;
+            font-weight: normal;
+        }
+
+        #crypto {
+            font-size: 32px;  /* 增大字体 */
+            margin-top: 30px;
+            letter-spacing: 2px;
+            font-weight: normal;
+        }
+
+        .crypto-item {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 40px;  /* 名称和价格之间的间距 */
+            margin: 15px 0;
+            width: 480px;  /* 显著增加整体宽度 */
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .crypto-name {
+            text-align: left;
+            padding-left: 20px;
+        }
+
+        .crypto-price {
+            text-align: right;
+            padding-right: 20px;
+            min-width: 160px;  /* 为价格区域设置最小宽度，确保有足够空间显示箭头 */
+        }
+
+        .price-up::after {
+            content: " ↑";
+            color: #000000;
+            display: inline-block;  /* 确保箭头和数字在同一行 */
+            margin-left: 4px;  /* 给箭头添加一点左边距 */
+        }
+        
+        .price-down::after {
+            content: " ↓";
+            color: #000000;
+            display: inline-block;
+            margin-left: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="clock-container">
+        <div id="time">--:--</div>
+        <div id="date">星期零 00/00</div>
+        <div id="crypto">
+            <div class="crypto-item">BTC: ---.--</div>
+            <div class="crypto-item">ETH: ---.--</div>
+            <div class="crypto-item">BIGTIME: ---.--</div>
+        </div>
+    </div>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            
+            // 格式化时间
+            const time = now.toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            // 格式化日期
+            const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+            const weekday = weekdays[now.getDay()];
+            const date = (now.getMonth() + 1).toString().padStart(2, '0') + '/' +
+                        now.getDate().toString().padStart(2, '0');
+            
+            // 更新显示
+            document.getElementById('time').textContent = time;
+            document.getElementById('date').textContent = `${weekday} ${date}`;
+        }
+
+        // 存储上一次的价格
+        let lastPrices = {
+            BTC: null,
+            ETH: null,
+            BIGTIME: null
+        };
+
+        async function updateCrypto() {
+            try {
+                const btcResponse = await fetch('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT');
+                const ethResponse = await fetch('https://www.okx.com/api/v5/market/ticker?instId=ETH-USDT');
+                const bigtimeResponse = await fetch('https://www.okx.com/api/v5/market/ticker?instId=BIGTIME-USDT');
+                
+                const btcData = await btcResponse.json();
+                const ethData = await ethResponse.json();
+                const bigtimeData = await bigtimeResponse.json();
+
+                const currentPrices = {
+                    BTC: parseFloat(btcData.data[0].last),
+                    ETH: parseFloat(ethData.data[0].last),
+                    BIGTIME: parseFloat(bigtimeData.data[0].last)
+                };
+
+                // 生成HTML，包含价格和涨跌指示器
+                const cryptoDiv = document.getElementById('crypto');
+                cryptoDiv.innerHTML = Object.entries(currentPrices).map(([coin, price]) => {
+                    const priceStr = price.toFixed(coin === 'BIGTIME' ? 5 : 2);
+                    const trend = lastPrices[coin] === null ? '' :
+                        price > lastPrices[coin] ? ' price-up' :
+                        price < lastPrices[coin] ? ' price-down' : '';
+                    
+                    return `
+                        <div class="crypto-item">
+                            <span class="crypto-name">${coin}:</span>
+                            <span class="crypto-price${trend}">${priceStr}</span>
+                        </div>`;
+                }).join('');
+
+                // 更新上一次的价格
+                lastPrices = currentPrices;
+            } catch (error) {
+                console.error('获取价格失败:', error);
+            }
+        }
+
+        // 初始更新
+        updateClock();
+        updateCrypto();
+
+        // 设置定时更新
+        setInterval(updateClock, 1000);    // 时钟每秒更新
+        setInterval(updateCrypto, 30000);  // 价格每30秒更新
+    </script>
+</body>
+</html>
