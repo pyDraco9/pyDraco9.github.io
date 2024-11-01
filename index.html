@@ -199,7 +199,7 @@
             try {
                 // 获取K线数据
                 const responses = await Promise.all(tokens.map(token => 
-                    fetch(`https://www.okx.com/api/v5/market/candles?instId=${token.instId}&bar=1m&limit=30`)
+                    fetch(`https://www.okx.com/api/v5/market/candles?instId=${token.instId}&bar=1m&limit=1440`)
                 ));
 
                 const data = await Promise.all(responses.map(response => response.json()));
