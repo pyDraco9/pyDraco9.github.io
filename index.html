@@ -38,22 +38,26 @@
         .crypto-item {
             display: grid;
             grid-template-columns: 1fr auto;
-            gap: min(40px, 5vw);  /* 使用相对单位 */
+            gap: min(40px, 5vw);
             margin: 15px 0;
-            width: min(480px, 90vw);  /* 使用相对单位 */
+            width: min(480px, 90vw);
             margin-left: auto;
             margin-right: auto;
         }
 
         .crypto-name {
             text-align: left;
-            padding-left: min(20px, 3vw);  /* 使用相对单位 */
+            padding-left: min(20px, 3vw);
         }
 
         .crypto-price {
             text-align: right;
-            padding-right: min(20px, 3vw);  /* 使用相对单位 */
-            min-width: min(160px, 30vw);  /* 使用相对单位 */
+            padding-right: min(20px, 3vw);
+            min-width: min(160px, 30vw);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
         }
 
         /* 修改价格无变化的样式 */
@@ -112,6 +116,24 @@
         #weather-desc {
             opacity: 0.8;
         }
+
+        .sparkline {
+            display: inline-flex;
+            align-items: center;
+            height: 20px;
+            margin-left: 0;
+        }
+
+        .sparkline-svg {
+            height: 100%;
+            width: 60px;
+        }
+
+        .sparkline-path {
+            stroke: #000;
+            stroke-width: 1;
+            fill: none;
+        }
     </style>
 </head>
 <body>
@@ -162,39 +184,42 @@
             document.getElementById('date').textContent = `${weekday} ${date}`;
         }
 
+        // 定义代币列表
+        const tokens = [
+            { name: 'BTC', instId: 'BTC-USDT', decimals: 0 },
+            { name: 'ETH', instId: 'ETH-USDT', decimals: 0 },
+            { name: 'BIGTIME', instId: 'BIGTIME-USDT', decimals: 3 }
+            // 可以在这里添加更多代币，并指定对应的小数位数
+        ];
+
         // 存储上一次的价格
-        let lastPrices = {
-            BTC: null,
-            ETH: null,
-            BIGTIME: null
-        };
+        let lastPrices = {};
 
         async function updateCrypto() {
             try {
-                // 使用 Promise.all 并行获取数据
-                const [btcResponse, ethResponse, bigtimeResponse] = await Promise.all([
-                    fetch('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT'),
-                    fetch('https://www.okx.com/api/v5/market/ticker?instId=ETH-USDT'),
-                    fetch('https://www.okx.com/api/v5/market/ticker?instId=BIGTIME-USDT')
-                ]);
+                // 获取K线数据
+                const responses = await Promise.all(tokens.map(token => 
+                    fetch(`https://www.okx.com/api/v5/market/candles?instId=${token.instId}&bar=1m&limit=30`)
+                ));
 
-                const [btcData, ethData, bigtimeData] = await Promise.all([
-                    btcResponse.json(),
-                    ethResponse.json(),
-                    bigtimeResponse.json()
-                ]);
+                const data = await Promise.all(responses.map(response => response.json()));
 
-                const currentPrices = {
-                    BTC: parseFloat(btcData.data[0].last),
-                    ETH: parseFloat(ethData.data[0].last),
-                    BIGTIME: parseFloat(bigtimeData.data[0].last)
-                };
+                const currentPrices = {};
+                const klineData = {};
+                
+                data.forEach((response, index) => {
+                    const token = tokens[index];
+                    const prices = response.data.reverse().map(candle => parseFloat(candle[4]));
+                    currentPrices[token.name] = prices[0];
+                    klineData[token.name] = prices;
+                });
 
-                // 生成HTML，包含价格和涨跌指示器
+                // 生成HTML
                 const cryptoDiv = document.getElementById('crypto');
                 cryptoDiv.innerHTML = Object.entries(currentPrices).map(([coin, price]) => {
-                    const priceStr = price.toFixed(coin === 'BIGTIME' ? 5 : 2);
-                    const trend = lastPrices[coin] === null ? ' price-unchanged' :  // 初始状态显示无变化标志
+                    const token = tokens.find(t => t.name === coin);
+                    const priceStr = price.toFixed(token.decimals);
+                    const trend = lastPrices[coin] === undefined ? ' price-unchanged' :  
                         price > lastPrices[coin] ? ' price-up' :
                         price < lastPrices[coin] ? ' price-down' :
                         ' price-unchanged';
@@ -202,14 +227,23 @@
                     return `
                         <div class="crypto-item">
                             <span class="crypto-name">${coin}:</span>
-                            <span class="crypto-price">${priceStr}<span class="${trend}"></span></span>
+                            <span class="crypto-price">
+                                ${priceStr}
+                                <span class="${trend}"></span>
+                                <span class="sparkline" id="sparkline-${coin}"></span>
+                            </span>
                         </div>`;
                 }).join('');
+
+                // 绘制K线图
+                Object.entries(klineData).forEach(([coin, prices]) => {
+                    drawSparkline(coin, prices);
+                });
 
                 // 更新上一次的价格
                 lastPrices = currentPrices;
 
-                // 在成功获取价格后更新时间
+                // 更新时间显示
                 const now = new Date();
                 const updateTimeStr = now.toLocaleTimeString('zh-CN', {
                     hour12: false,
@@ -221,6 +255,34 @@
             } catch (error) {
                 console.error('获取价格失败:', error);
             }
+        }
+
+        // 添加绘制K线图函数
+        function drawSparkline(coin, prices) {
+            const container = document.getElementById(`sparkline-${coin}`);
+            if (!container) return;
+
+            const width = 60;
+            const height = 20;
+            const padding = 2;
+
+            const min = Math.min(...prices);
+            const max = Math.max(...prices);
+            const range = max - min;
+
+            const points = prices.map((price, index) => {
+                const x = (index / (prices.length - 1)) * (width - padding * 2) + padding;
+                const y = height - (((price - min) / range) * (height - padding * 2) + padding);
+                return `${x},${y}`;
+            });
+
+            const path = `M ${points.join(' L ')}`;
+
+            container.innerHTML = `
+                <svg class="sparkline-svg" viewBox="0 0 ${width} ${height}">
+                    <path class="sparkline-path" d="${path}"/>
+                </svg>
+            `;
         }
 
         // 初始更新
