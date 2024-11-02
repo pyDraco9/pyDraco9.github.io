@@ -194,6 +194,16 @@
 
         // 修改加密货币更新函数，使用传统的 XMLHttpRequest
         function updateCrypto() {
+            // 更新时间显示
+            var now = new Date();
+            var timeStr = now.toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('update-time').textContent = '更新时间: ' + timeStr;
+
             tokens.forEach(function(token) {
                 var xhr = new XMLHttpRequest();
                 xhr.open('GET', 'https://www.okx.com/api/v5/market/candles?instId=' + token.instId + '&bar=1m&limit=1440', true);
@@ -245,6 +255,16 @@
 
         // 修改天气更新函数
         function updateWeather() {
+            // 更新时间显示
+            var now = new Date();
+            var timeStr = now.toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('update-time').textContent = '更新时间: ' + timeStr;
+
             var xhr = new XMLHttpRequest();
             xhr.open('GET', 'https://wttr.in/daqing?format=j1', true);
             
