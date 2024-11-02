@@ -192,125 +192,66 @@
             // 可以在这里添加更多代币，并指定对应的小数位数
         ];
 
-        // 修改加密货币更新函数，使用传统的 XMLHttpRequest
-        function updateCrypto() {
-            // 更新时间显示
-            var now = new Date();
-            var timeStr = now.toLocaleTimeString('en-US', {
-                hour12: false,
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-            document.getElementById('update-time').textContent = '更新时间: ' + timeStr;
+        async function updateCrypto() {
+            try {
+                // 获取K线数据
+                const responses = await Promise.all(tokens.map(token => 
+                    fetch(`https://www.okx.com/api/v5/market/candles?instId=${token.instId}&bar=1m&limit=1440`)
+                ));
 
-            tokens.forEach(function(token) {
-                var xhr = new XMLHttpRequest();
-                xhr.open('GET', 'https://www.okx.com/api/v5/market/candles?instId=' + token.instId + '&bar=1m&limit=1440', true);
+                const data = await Promise.all(responses.map(response => response.json()));
+
+                const currentPrices = {};
+                const klineData = {};
                 
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState === 4) {
-                        if (xhr.status === 200) {
-                            try {
-                                var response = JSON.parse(xhr.responseText);
-                                var prices = response.data.reverse().map(function(candle) {
-                                    return parseFloat(candle[4]);
-                                });
-                                
-                                updatePriceDisplay(token.name, prices[0], token.decimals, prices);
-                            } catch (error) {
-                                console.error('解析价格失败:', error);
-                            }
-                        }
-                    }
-                };
-                
-                xhr.send();
-            });
-        }
+                data.forEach((response, index) => {
+                    const token = tokens[index];
+                    const prices = response.data.reverse().map(candle => parseFloat(candle[4]));
+                    currentPrices[token.name] = prices[0];
+                    klineData[token.name] = prices;
+                });
 
-        // 新增辅助函数来更新价格显示
-        function updatePriceDisplay(coin, price, decimals, prices) {
-            var priceStr = price.toFixed(decimals);
-            var trend = prices.length < 2 ? ' price-unchanged' :
-                prices[0] > prices[1] ? ' price-up' :
-                prices[0] < prices[1] ? ' price-down' : ' price-unchanged';
+                // 生成HTML
+                const cryptoDiv = document.getElementById('crypto');
+                cryptoDiv.innerHTML = Object.entries(currentPrices).map(([coin, price]) => {
+                    const token = tokens.find(t => t.name === coin);
+                    const priceStr = price.toFixed(token.decimals);
+                    
+                    // 使用K线数据判断趋势
+                    const prices = klineData[coin];
+                    const trend = prices.length < 2 ? ' price-unchanged' :
+                        prices[0] > prices[1] ? ' price-up' :
+                        prices[0] < prices[1] ? ' price-down' :
+                        ' price-unchanged';
+                    
+                    return `
+                        <div class="crypto-item">
+                            <span class="crypto-name">${coin}:</span>
+                            <span class="crypto-price">
+                                ${priceStr}
+                                <span class="${trend}"></span>
+                                <span class="sparkline" id="sparkline-${coin}"></span>
+                            </span>
+                        </div>`;
+                }).join('');
 
-            var cryptoItems = document.getElementsByClassName('crypto-item');
-            for (var i = 0; i < cryptoItems.length; i++) {
-                var nameElement = cryptoItems[i].querySelector('.crypto-name');
-                if (nameElement && nameElement.textContent.indexOf(coin + ':') !== -1) {
-                    var priceElement = cryptoItems[i].querySelector('.crypto-price');
-                    if (priceElement) {
-                        priceElement.innerHTML = priceStr +
-                            '<span class="' + trend + '"></span>' +
-                            '<span class="sparkline" id="sparkline-' + coin + '"></span>';
-                        
-                        drawSparkline(coin, prices);
-                    }
-                    break;
-                }
+                // 绘制K线图
+                Object.entries(klineData).forEach(([coin, prices]) => {
+                    drawSparkline(coin, prices);
+                });
+
+                // 更新时间显示
+                const now = new Date();
+                const updateTimeStr = now.toLocaleTimeString('zh-CN', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                document.getElementById('update-time').textContent = `更新时间: ${updateTimeStr}`;
+            } catch (error) {
+                console.error('获取价格失败:', error);
             }
-        }
-
-        // 修改天气更新函数
-        function updateWeather() {
-            // 更新时间显示
-            var now = new Date();
-            var timeStr = now.toLocaleTimeString('en-US', {
-                hour12: false,
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-            document.getElementById('update-time').textContent = '更新时间: ' + timeStr;
-
-            var xhr = new XMLHttpRequest();
-            xhr.open('GET', 'https://wttr.in/daqing?format=j1', true);
-            
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        try {
-                            var data = JSON.parse(xhr.responseText);
-                            if (data && data.current_condition && data.current_condition[0]) {
-                                var weatherInfo = data.current_condition[0];
-                                var temp = weatherInfo.temp_C;
-                                var desc = weatherInfo.lang_zh && weatherInfo.lang_zh[0] ? 
-                                         weatherInfo.lang_zh[0].value : 
-                                         weatherInfo.weatherDesc[0].value;
-                                
-                                document.getElementById('weather-temp').textContent = temp + '°C';
-                                document.getElementById('weather-desc').textContent = desc;
-                            }
-                        } catch (error) {
-                            console.error('解析天气失败:', error);
-                            fallbackWeather();
-                        }
-                    } else {
-                        fallbackWeather();
-                    }
-                }
-            };
-            
-            xhr.send();
-        }
-
-        // 添加天气获取备用方案
-        function fallbackWeather() {
-            var xhr = new XMLHttpRequest();
-            xhr.open('GET', 'https://wttr.in/daqing?format=%t+%C', true);
-            
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4 && xhr.status === 200) {
-                    var text = xhr.responseText.replace(/\+/g, ' ').trim();
-                    var parts = text.split(' ');
-                    document.getElementById('weather-temp').textContent = parts[0];
-                    document.getElementById('weather-desc').textContent = parts.slice(1).join(' ');
-                }
-            };
-            
-            xhr.send();
         }
 
         // 添加绘制K线图函数
@@ -371,6 +312,38 @@
         // 页面加载和窗口大小改变时进行缩放
         window.addEventListener('load', autoScale);
         window.addEventListener('resize', autoScale);
+
+        // 修改天气更新函数
+        async function updateWeather() {
+            try {
+                const response = await fetch('https://wttr.in/daqing?format=j1');
+                const data = await response.json();
+
+                if (data && data.current_condition && data.current_condition[0]) {
+                    const weatherInfo = data.current_condition[0];
+                    const temp = weatherInfo.temp_C;
+                    const desc = weatherInfo.lang_zh && weatherInfo.lang_zh[0] ? 
+                                weatherInfo.lang_zh[0].value : 
+                                weatherInfo.weatherDesc[0].value;
+                    
+                    document.getElementById('weather-temp').textContent = `${temp}°C`;
+                    document.getElementById('weather-desc').textContent = desc;
+                }
+            } catch (error) {
+                console.error('获取天气失败:', error);
+                // 如果获取失败，可以尝试使用备用接口
+                try {
+                    const response = await fetch('https://wttr.in/daqing?format=%t+%C');
+                    const text = await response.text();
+                    // 清理返回的文本
+                    const cleanText = text.replace(/\+/g, ' ').trim();
+                    document.getElementById('weather-temp').textContent = cleanText.split(' ')[0];
+                    document.getElementById('weather-desc').textContent = cleanText.split(' ').slice(1).join(' ');
+                } catch (backupError) {
+                    console.error('备用天气失败:', backupError);
+                }
+            }
+        }
 
         // 初始更新
         updateWeather();
