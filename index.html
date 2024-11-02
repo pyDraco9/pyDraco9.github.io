@@ -36,28 +36,23 @@
         }
 
         .crypto-item {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            gap: min(40px, 5vw);
+            display: block;
             margin: 15px 0;
-            width: min(480px, 90vw);
+            width: 90%;
             margin-left: auto;
             margin-right: auto;
         }
 
         .crypto-name {
+            display: inline-block;
+            width: 40%;
             text-align: left;
-            padding-left: min(20px, 3vw);
         }
 
         .crypto-price {
+            display: inline-block;
+            width: 55%;
             text-align: right;
-            padding-right: min(20px, 3vw);
-            min-width: min(160px, 30vw);
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 10px;
         }
 
         /* 修改价格无变化的样式 */
@@ -85,20 +80,16 @@
 
         /* 添加新的自动缩放脚本样式 */
         .auto-scale {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(1);
+            position: static;
+            transform: none;
+            margin: 20px auto;
         }
 
         /* 添加更新时间样式 */
         #update-time {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            font-size: min(16px, 3vw);
-            opacity: 0.7;
-            font-family: sans-serif;  /* 使用普通字体，便于阅读 */
+            position: static;
+            text-align: right;
+            margin: 20px 10px;
         }
 
         /* 添加天气样式 */
@@ -115,24 +106,6 @@
 
         #weather-desc {
             opacity: 0.8;
-        }
-
-        .sparkline {
-            display: inline-flex;
-            align-items: center;
-            height: 20px;
-            margin-left: 0;
-        }
-
-        .sparkline-svg {
-            height: 100%;
-            width: 60px;
-        }
-
-        .sparkline-path {
-            stroke: #000;
-            stroke-width: 1;
-            fill: none;
         }
     </style>
 </head>
@@ -194,51 +167,31 @@
 
         async function updateCrypto() {
             try {
-                // 获取K线数据
                 const responses = await Promise.all(tokens.map(token => 
-                    fetch(`https://www.okx.com/api/v5/market/candles?instId=${token.instId}&bar=1m&limit=1440`)
+                    fetch(`https://www.okx.com/api/v5/market/candles?instId=${token.instId}&bar=1m&limit=2`)
                 ));
 
                 const data = await Promise.all(responses.map(response => response.json()));
 
-                const currentPrices = {};
-                const klineData = {};
-                
-                data.forEach((response, index) => {
-                    const token = tokens[index];
-                    const prices = response.data.reverse().map(candle => parseFloat(candle[4]));
-                    currentPrices[token.name] = prices[0];
-                    klineData[token.name] = prices;
-                });
-
-                // 生成HTML
                 const cryptoDiv = document.getElementById('crypto');
-                cryptoDiv.innerHTML = Object.entries(currentPrices).map(([coin, price]) => {
-                    const token = tokens.find(t => t.name === coin);
+                cryptoDiv.innerHTML = tokens.map((token, index) => {
+                    const price = parseFloat(data[index].data[0][4]);
+                    const prevPrice = parseFloat(data[index].data[1][4]);
                     const priceStr = price.toFixed(token.decimals);
                     
-                    // 使用K线数据判断趋势
-                    const prices = klineData[coin];
-                    const trend = prices.length < 2 ? ' price-unchanged' :
-                        prices[0] > prices[1] ? ' price-up' :
-                        prices[0] < prices[1] ? ' price-down' :
-                        ' price-unchanged';
+                    const trend = price > prevPrice ? ' price-up' :
+                                 price < prevPrice ? ' price-down' :
+                                 ' price-unchanged';
                     
                     return `
                         <div class="crypto-item">
-                            <span class="crypto-name">${coin}:</span>
+                            <span class="crypto-name">${token.name}:</span>
                             <span class="crypto-price">
                                 ${priceStr}
                                 <span class="${trend}"></span>
-                                <span class="sparkline" id="sparkline-${coin}"></span>
                             </span>
                         </div>`;
                 }).join('');
-
-                // 绘制K线图
-                Object.entries(klineData).forEach(([coin, prices]) => {
-                    drawSparkline(coin, prices);
-                });
 
                 // 更新时间显示
                 const now = new Date();
@@ -254,34 +207,6 @@
             }
         }
 
-        // 添加绘制K线图函数
-        function drawSparkline(coin, prices) {
-            const container = document.getElementById(`sparkline-${coin}`);
-            if (!container) return;
-
-            const width = 60;
-            const height = 20;
-            const padding = 2;
-
-            const min = Math.min(...prices);
-            const max = Math.max(...prices);
-            const range = max - min;
-
-            const points = prices.map((price, index) => {
-                const x = (index / (prices.length - 1)) * (width - padding * 2) + padding;
-                const y = height - (((price - min) / range) * (height - padding * 2) + padding);
-                return `${x},${y}`;
-            });
-
-            const path = `M ${points.join(' L ')}`;
-
-            container.innerHTML = `
-                <svg class="sparkline-svg" viewBox="0 0 ${width} ${height}">
-                    <path class="sparkline-path" d="${path}"/>
-                </svg>
-            `;
-        }
-
         // 初始更新
         updateClock();
         updateCrypto();
@@ -289,29 +214,6 @@
         // 设置定时更新
         setInterval(updateClock, 1000);    // 时钟每秒更新
         setInterval(updateCrypto, 30000);  // 价格每30秒更新
-
-        // 添加自动缩放功能
-        function autoScale() {
-            const container = document.querySelector('.auto-scale');
-            const containerWidth = container.offsetWidth;
-            const containerHeight = container.offsetHeight;
-            const windowWidth = window.innerWidth;
-            const windowHeight = window.innerHeight;
-
-            // 计算水平和垂直方向的缩放比例
-            const scaleX = windowWidth / containerWidth;
-            const scaleY = windowHeight / containerHeight;
-            
-            // 使用较小的缩放比例，确保内容完全显示
-            const scale = Math.min(scaleX, scaleY) * 0.9; // 0.9是为了留出一些边距
-
-            // 应用缩放
-            container.style.transform = `translate(-50%, -50%) scale(${scale})`;
-        }
-
-        // 页面加载和窗口大小改变时进行缩放
-        window.addEventListener('load', autoScale);
-        window.addEventListener('resize', autoScale);
 
         // 修改天气更新函数
         async function updateWeather() {
