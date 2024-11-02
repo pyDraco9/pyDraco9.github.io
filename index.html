@@ -192,9 +192,6 @@
             // 可以在这里添加更多代币，并指定对应的小数位数
         ];
 
-        // 存储上一次的价格
-        let lastPrices = {};
-
         async function updateCrypto() {
             try {
                 // 获取K线数据
@@ -219,9 +216,12 @@
                 cryptoDiv.innerHTML = Object.entries(currentPrices).map(([coin, price]) => {
                     const token = tokens.find(t => t.name === coin);
                     const priceStr = price.toFixed(token.decimals);
-                    const trend = lastPrices[coin] === undefined ? ' price-unchanged' :  
-                        price > lastPrices[coin] ? ' price-up' :
-                        price < lastPrices[coin] ? ' price-down' :
+                    
+                    // 使用K线数据判断趋势
+                    const prices = klineData[coin];
+                    const trend = prices.length < 2 ? ' price-unchanged' :
+                        prices[0] > prices[1] ? ' price-up' :
+                        prices[0] < prices[1] ? ' price-down' :
                         ' price-unchanged';
                     
                     return `
@@ -239,9 +239,6 @@
                 Object.entries(klineData).forEach(([coin, prices]) => {
                     drawSparkline(coin, prices);
                 });
-
-                // 更新上一次的价格
-                lastPrices = currentPrices;
 
                 // 更新时间显示
                 const now = new Date();
